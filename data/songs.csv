@@ -1,21 +1,21 @@
-id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness
-1,Sunrise City,Neon Echo,pop,happy,0.82,118,0.84,0.79,0.18
-2,Midnight Coding,LoRoom,lofi,chill,0.42,78,0.56,0.62,0.71
-3,Storm Runner,Voltline,rock,intense,0.91,152,0.48,0.66,0.10
-4,Library Rain,Paper Lanterns,lofi,chill,0.35,72,0.60,0.58,0.86
-5,Gym Hero,Max Pulse,pop,intense,0.93,132,0.77,0.88,0.05
-6,Spacewalk Thoughts,Orbit Bloom,ambient,chill,0.28,60,0.65,0.41,0.92
-7,Coffee Shop Stories,Slow Stereo,jazz,relaxed,0.37,90,0.71,0.54,0.89
-8,Night Drive Loop,Neon Echo,synthwave,moody,0.75,110,0.49,0.73,0.22
-9,Focus Flow,LoRoom,lofi,focused,0.40,80,0.59,0.60,0.78
-10,Rooftop Lights,Indigo Parade,indie pop,happy,0.76,124,0.81,0.82,0.35
-11,Tears in the Rain,Echo Sorrow,indie,sad,0.35,85,0.28,0.45,0.72
-12,Hustle Beats,City Vibes,hip-hop,intense,0.88,104,0.62,0.79,0.12
-13,Electric Dream,Synth Wave,house,happy,0.95,128,0.88,0.92,0.05
-14,Island Vibes,Tropical Breeze,reggae,relaxed,0.45,95,0.78,0.68,0.82
-15,Thunder Strike,Metal Fury,metal,intense,0.96,160,0.35,0.42,0.02
-16,Smooth Glide,Soul Touch,R&B,relaxed,0.52,92,0.75,0.85,0.15
-17,Autumn Walk,Acoustic Folk,folk,relaxed,0.33,76,0.65,0.38,0.95
-18,Void Explorer,Future Soundscape,ambient,chill,0.25,55,0.48,0.20,0.88
-19,Midnight Blues,Blue Notes,blues,sad,0.48,88,0.32,0.52,0.78
-20,Fiesta Latina,Latin Fire,latin,happy,0.87,135,0.85,0.88,0.30
+id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness,popularity,release_decade,mood_tags,instrumentalness,speechiness,listening_context
+1,Sunrise City,Neon Echo,pop,happy,0.82,118,0.84,0.79,0.18,88,2020s,euphoric;bright,0.08,0.05,party
+2,Midnight Coding,LoRoom,lofi,chill,0.42,78,0.56,0.62,0.71,65,2020s,dreamy;focused,0.72,0.02,study
+3,Storm Runner,Voltline,rock,intense,0.91,152,0.48,0.66,0.10,72,2010s,aggressive;powerful,0.06,0.03,workout
+4,Library Rain,Paper Lanterns,lofi,chill,0.35,72,0.60,0.58,0.86,58,2020s,sleepy;dreamy,0.92,0.01,study
+5,Gym Hero,Max Pulse,pop,intense,0.93,132,0.77,0.88,0.05,82,2020s,energetic;aggressive,0.04,0.06,workout
+6,Spacewalk Thoughts,Orbit Bloom,ambient,chill,0.28,60,0.65,0.41,0.92,49,2010s,mellow;spacey,0.95,0.01,relax
+7,Coffee Shop Stories,Slow Stereo,jazz,relaxed,0.37,90,0.71,0.54,0.89,61,2000s,cozy;warm,0.88,0.04,coffee
+8,Night Drive Loop,Neon Echo,synthwave,moody,0.75,110,0.49,0.73,0.22,70,2010s,nostalgic;dreamy,0.20,0.10,drive
+9,Focus Flow,LoRoom,lofi,focused,0.40,80,0.59,0.60,0.78,67,2020s,productive;calm,0.85,0.03,study
+10,Rooftop Lights,Indigo Parade,indie pop,happy,0.76,124,0.81,0.82,0.35,74,2010s,euphoric;bright,0.22,0.07,party
+11,Tears in the Rain,Echo Sorrow,indie,sad,0.35,85,0.28,0.45,0.72,53,2000s,melancholic;emotional,0.80,0.05,night
+12,Hustle Beats,City Vibes,hip-hop,intense,0.88,104,0.62,0.79,0.12,77,2020s,pump-up;hard-hitting,0.15,0.35,workout
+13,Electric Dream,Synth Wave,house,happy,0.95,128,0.88,0.92,0.05,90,2020s,euphoric;glowing,0.03,0.06,party
+14,Island Vibes,Tropical Breeze,reggae,relaxed,0.45,95,0.78,0.68,0.82,64,2010s,sunny;laidback,0.87,0.02,beach
+15,Thunder Strike,Metal Fury,metal,intense,0.96,160,0.35,0.42,0.02,79,2000s,aggressive;powerful,0.01,0.02,workout
+16,Smooth Glide,Soul Touch,R&B,relaxed,0.52,92,0.75,0.85,0.15,66,2010s,smooth;warm,0.05,0.25,night
+17,Autumn Walk,Acoustic Folk,folk,relaxed,0.33,76,0.65,0.38,0.95,60,1990s,earthy;nostalgic,0.98,0.01,relax
+18,Void Explorer,Future Soundscape,ambient,chill,0.25,55,0.48,0.20,0.88,46,2020s,cosmic;mellow,0.94,0.02,study
+19,Midnight Blues,Blue Notes,blues,sad,0.48,88,0.32,0.52,0.78,55,1990s,moody;emotional,0.76,0.10,night
+20,Fiesta Latina,Latin Fire,latin,happy,0.87,135,0.85,0.88,0.30,80,2010s,festive;bright,0.25,0.15,party

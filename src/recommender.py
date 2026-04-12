@@ -121,15 +121,15 @@ class Recommender:
         return "This song was recommended because it " + ", and ".join(reasons)
 
 def load_songs(csv_path: str) -> List[Dict]:
-    """Load song dictionaries from CSV with numeric type conversion (id, energy, tempo_bpm, etc.)."""
+    """Load song dictionaries from CSV with numeric type conversion and advanced attributes."""
     print(f"Loading songs from {csv_path}...")
     songs = []
-    
+
     try:
-        with open(csv_path, 'r') as csvfile:
+        with open(csv_path, 'r', newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                # Convert numeric fields to floats
+                mood_tags = [tag.strip() for tag in row['mood_tags'].split(';') if tag.strip()]
                 song_dict = {
                     'id': int(row['id']),
                     'title': row['title'],
@@ -141,103 +141,273 @@ def load_songs(csv_path: str) -> List[Dict]:
                     'valence': float(row['valence']),
                     'danceability': float(row['danceability']),
                     'acousticness': float(row['acousticness']),
+                    'popularity': int(row['popularity']),
+                    'release_decade': row['release_decade'],
+                    'mood_tags': mood_tags,
+                    'instrumentalness': float(row['instrumentalness']),
+                    'speechiness': float(row['speechiness']),
+                    'listening_context': row['listening_context'],
                 }
                 songs.append(song_dict)
         print(f"✓ Loaded {len(songs)} songs")
     except FileNotFoundError:
         print(f"✗ Error: Could not find file at {csv_path}")
-    
+
     return songs
 
-def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
-    """Generate top-k song recommendations using 5-feature weighted content-based scoring (returns song, score, explanation tuples)."""
-    # Algorithm Recipe: Score = 0.30×Energy + 0.25×Mood + 0.20×Acousticness + 0.15×Danceability + 0.10×Valence
+
+def recommend_songs(
+    user_prefs: Dict,
+    songs: List[Dict],
+    k: int = 5,
+    ignore_mood: bool = False,
+    mode: str = "balanced",
+    weight_overrides: Optional[Dict[str, float]] = None,
+) -> List[Tuple[Dict, float, str]]:
+    """Generate top-k recommendations with scoring modes and diversity penalty."""
+    default_weights = {
+        'energy': 0.15,
+        'mood': 0.12,
+        'genre': 0.11,
+        'acousticness': 0.09,
+        'danceability': 0.09,
+        'valence': 0.07,
+        'popularity': 0.08,
+        'release_decade': 0.06,
+        'mood_tags': 0.08,
+        'instrumentalness': 0.06,
+        'speechiness': 0.05,
+        'listening_context': 0.04,
+    }
+
+    mode_weight_overrides = {
+        'balanced': {},
+        'mood-first': {
+            'mood': 0.16,
+            'mood_tags': 0.12,
+            'valence': 0.11,
+            'energy': 0.14,
+            'genre': 0.10,
+            'release_decade': 0.05,
+            'listening_context': 0.05,
+        },
+        'genre-first': {
+            'genre': 0.18,
+            'mood': 0.13,
+            'energy': 0.13,
+            'popularity': 0.10,
+            'acousticness': 0.08,
+            'danceability': 0.08,
+            'valence': 0.07,
+            'mood_tags': 0.07,
+            'release_decade': 0.05,
+            'listening_context': 0.05,
+        },
+        'energy-first': {
+            'energy': 0.22,
+            'danceability': 0.14,
+            'genre': 0.09,
+            'mood': 0.11,
+            'acousticness': 0.08,
+            'popularity': 0.08,
+            'mood_tags': 0.08,
+            'valence': 0.08,
+            'instrumentalness': 0.06,
+            'speechiness': 0.05,
+        },
+    }
+
+    final_overrides = {**mode_weight_overrides.get(mode, {}), **(weight_overrides or {})}
+    weights = {**default_weights, **final_overrides}
+    total_weight = sum(weights.values())
+    if abs(total_weight - 1.0) > 1e-9:
+        weights = {feature: weight / total_weight for feature, weight in weights.items()}
+
     def score_song(song: Dict, prefs: Dict) -> Tuple[float, List[str]]:
-        """Score a song by computing weighted 5-feature similarity (returns score and breakdown)."""
         score = 0.0
         reasons = []
-        
-        # Get preferences with defaults
+
         target_mood = prefs.get('mood', 'happy')
         target_energy = prefs.get('energy', 0.5)
         likes_acoustic = prefs.get('acoustic_preference', 'mixed') == 'acoustic'
-        
-        # ============ FEATURE 1: Energy Matching (30% weight) ============
-        # Proximity-based: closer to target energy gets higher score
+        favorite_genre = prefs.get('favorite_genre')
+        target_popularity = prefs.get('target_popularity', 70)
+        preferred_decade = prefs.get('preferred_decade')
+        desired_mood_tags = prefs.get('desired_mood_tags', [])
+        vocal_preference = prefs.get('vocal_preference', 'vocal')
+        listening_context = prefs.get('listening_context')
+
         energy_diff = abs(song['energy'] - target_energy)
-        energy_score = 1.0 - energy_diff
-        energy_contribution = 0.30 * energy_score
+        energy_score = max(0.0, 1.0 - energy_diff)
+        energy_contribution = weights['energy'] * energy_score
         score += energy_contribution
-        reasons.append(f"Energy: {energy_score:.2f} × 0.30 = +{energy_contribution:.3f} ({song['energy']:.2f} vs {target_energy:.2f})")
-        
-        # ============ FEATURE 2: Mood Matching (25% weight) ============
-        # Exact match gets full score, mismatch gets partial
-        mood_match = song['mood'] == target_mood
-        mood_score = 1.0 if mood_match else 0.5
-        mood_contribution = 0.25 * mood_score
+        reasons.append(
+            f"Energy: {energy_score:.2f} × {weights['energy']:.2f} = +{energy_contribution:.3f} ({song['energy']:.2f} vs {target_energy:.2f})"
+        )
+
+        if ignore_mood:
+            mood_score = 0.50
+            mood_status = 'ignored'
+        else:
+            mood_match = song['mood'] == target_mood
+            mood_score = 1.0 if mood_match else 0.5
+            mood_status = 'exact match' if mood_match else 'partial match'
+        mood_contribution = weights['mood'] * mood_score
         score += mood_contribution
-        mood_status = "exact match" if mood_match else "partial match"
-        reasons.append(f"Mood: {mood_score:.2f} × 0.25 = +{mood_contribution:.3f} ({mood_status})")
-        
-        # ============ FEATURE 3: Acousticness Preference (20% weight) ============
-        # Honors user's acoustic vs. electronic preference
+        reasons.append(
+            f"Mood: {mood_score:.2f} × {weights['mood']:.2f} = +{mood_contribution:.3f} ({mood_status})"
+        )
+
+        genre_score = 1.0 if favorite_genre and song['genre'] == favorite_genre else 0.5
+        genre_context = 'favorite genre match' if favorite_genre and song['genre'] == favorite_genre else 'genre similarity'
+        genre_contribution = weights['genre'] * genre_score
+        score += genre_contribution
+        reasons.append(
+            f"Genre: {genre_score:.2f} × {weights['genre']:.2f} = +{genre_contribution:.3f} ({genre_context})"
+        )
+
         if likes_acoustic:
             acousticness_score = song['acousticness']
-            acoustic_pref = "likes acoustic"
+            acoustic_pref = 'likes acoustic'
         else:
             acousticness_score = 1.0 - song['acousticness']
-            acoustic_pref = "likes electronic"
-        acousticness_contribution = 0.20 * acousticness_score
+            acoustic_pref = 'likes electronic'
+        acousticness_contribution = weights['acousticness'] * acousticness_score
         score += acousticness_contribution
-        reasons.append(f"Acousticness: {acousticness_score:.2f} × 0.20 = +{acousticness_contribution:.3f} ({acoustic_pref})")
-        
-        # ============ FEATURE 4: Danceability (15% weight) ============
-        # Mood-dependent: high weight for happy/intense, neutral for chill/relaxed
+        reasons.append(
+            f"Acousticness: {acousticness_score:.2f} × {weights['acousticness']:.2f} = +{acousticness_contribution:.3f} ({acoustic_pref})"
+        )
+
         if song['mood'] in ['happy', 'intense']:
             danceability_score = song['danceability']
             dance_context = f"high for {song['mood']} music"
         else:
             danceability_score = 0.5
             dance_context = f"neutral for {song['mood']} music"
-        danceability_contribution = 0.15 * danceability_score
+        danceability_contribution = weights['danceability'] * danceability_score
         score += danceability_contribution
-        reasons.append(f"Danceability: {danceability_score:.2f} × 0.15 = +{danceability_contribution:.3f} ({dance_context})")
-        
-        # ============ FEATURE 5: Valence (10% weight) ============
-        # Mood-dependent: higher valence for happy, lower for chill/sad
+        reasons.append(
+            f"Danceability: {danceability_score:.2f} × {weights['danceability']:.2f} = +{danceability_contribution:.3f} ({dance_context})"
+        )
+
         if target_mood == 'happy':
             valence_score = song['valence']
-            valence_context = "prefers upbeat (high valence)"
+            valence_context = 'prefers upbeat (high valence)'
         elif target_mood in ['chill', 'relaxed']:
             valence_score = 1.0 - song['valence']
-            valence_context = "prefers mellow (low valence)"
+            valence_context = 'prefers mellow (low valence)'
         else:
             valence_score = 0.5
-            valence_context = "neutral valence preference"
-        valence_contribution = 0.10 * valence_score
+            valence_context = 'neutral valence preference'
+        valence_contribution = weights['valence'] * valence_score
         score += valence_contribution
-        reasons.append(f"Valence: {valence_score:.2f} × 0.10 = +{valence_contribution:.3f} ({valence_context})")
-        
+        reasons.append(
+            f"Valence: {valence_score:.2f} × {weights['valence']:.2f} = +{valence_contribution:.3f} ({valence_context})"
+        )
+
+        popularity_diff = abs(song['popularity'] - target_popularity) / 100.0
+        popularity_score = max(0.0, 1.0 - popularity_diff)
+        popularity_contribution = weights['popularity'] * popularity_score
+        score += popularity_contribution
+        reasons.append(
+            f"Popularity: {popularity_score:.2f} × {weights['popularity']:.2f} = +{popularity_contribution:.3f} (target={target_popularity})"
+        )
+
+        decade_score = 1.0 if preferred_decade and song['release_decade'] == preferred_decade else 0.5
+        decade_contribution = weights['release_decade'] * decade_score
+        score += decade_contribution
+        reasons.append(
+            f"Release Decade: {decade_score:.2f} × {weights['release_decade']:.2f} = +{decade_contribution:.3f} ({song['release_decade']})"
+        )
+
+        if desired_mood_tags:
+            tag_matches = sum(1 for tag in desired_mood_tags if tag in song['mood_tags'])
+            mood_tag_score = min(1.0, tag_matches / len(desired_mood_tags))
+        else:
+            tag_matches = 0
+            mood_tag_score = 0.5
+        mood_tag_contribution = weights['mood_tags'] * mood_tag_score
+        score += mood_tag_contribution
+        reasons.append(
+            f"Mood Tags: {mood_tag_score:.2f} × {weights['mood_tags']:.2f} = +{mood_tag_contribution:.3f} (matched {tag_matches})"
+        )
+
+        if vocal_preference == 'instrumental':
+            instrumentalness_score = song['instrumentalness']
+            speechiness_score = 1.0 - song['speechiness']
+            vocal_context = 'instrumental preference'
+        else:
+            instrumentalness_score = 1.0 - song['instrumentalness']
+            speechiness_score = song['speechiness']
+            vocal_context = 'vocal preference'
+        instrumental_contribution = weights['instrumentalness'] * instrumentalness_score
+        speechiness_contribution = weights['speechiness'] * speechiness_score
+        score += instrumental_contribution + speechiness_contribution
+        reasons.append(
+            f"Instrumentalness: {instrumentalness_score:.2f} × {weights['instrumentalness']:.2f} = +{instrumental_contribution:.3f} ({vocal_context})"
+        )
+        reasons.append(
+            f"Speechiness: {speechiness_score:.2f} × {weights['speechiness']:.2f} = +{speechiness_contribution:.3f} ({vocal_context})"
+        )
+
+        if listening_context:
+            context_score = 1.0 if song['listening_context'] == listening_context else 0.5
+            context_contribution = weights['listening_context'] * context_score
+            score += context_contribution
+            reasons.append(
+                f"Context: {context_score:.2f} × {weights['listening_context']:.2f} = +{context_contribution:.3f} ({song['listening_context']})"
+            )
+
         return score, reasons
-    
+
+    def compute_diversity_penalty(song: Dict, selected: List[Dict]) -> Tuple[float, List[str]]:
+        artist_count = sum(1 for selected_song in selected if selected_song['artist'] == song['artist'])
+        genre_count = sum(1 for selected_song in selected if selected_song['genre'] == song['genre'])
+        penalty = artist_count * 0.08 + genre_count * 0.05
+        reasons = []
+        if artist_count:
+            reasons.append(f"artist repeat x{artist_count}")
+        if genre_count:
+            reasons.append(f"genre repeat x{genre_count}")
+        return penalty, reasons
+
     def format_explanation(song: Dict, score: float, reasons: List[str]) -> str:
-        """Format scored reasons breakdown into human-readable multi-line explanation."""
         breakdown = "\n  ".join(reasons)
         return f"Score: {score:.3f}\n  {breakdown}"
-    
-    # Score all songs
+
     scored_songs = []
     for song in songs:
         song_score, song_reasons = score_song(song, user_prefs)
         scored_songs.append((song, song_score, song_reasons))
-    
-    # Sort by score descending
-    sorted_songs = sorted(scored_songs, key=lambda x: x[1], reverse=True)
-    
-    # Return top k with detailed explanations
+
+    selected: List[Tuple[Dict, float, List[str]]] = []
+    remaining = scored_songs.copy()
+    while len(selected) < k and remaining:
+        best_index = None
+        best_adjusted_score = -float('inf')
+        best_item = None
+        for idx, (song, score, reasons) in enumerate(remaining):
+            penalty, penalty_reasons = compute_diversity_penalty(song, [item[0] for item in selected])
+            adjusted_score = score - penalty
+            if adjusted_score > best_adjusted_score:
+                best_adjusted_score = adjusted_score
+                best_index = idx
+                best_item = (song, score, reasons, penalty, penalty_reasons)
+        if best_item is None:
+            break
+
+        song, score, reasons, penalty, penalty_reasons = best_item
+        chosen_reasons = list(reasons)
+        final_score = score - penalty
+        if penalty > 0:
+            penalty_text = ", ".join(penalty_reasons)
+            chosen_reasons.append(f"Diversity penalty: -{penalty:.2f} ({penalty_text})")
+        selected.append((song, final_score, chosen_reasons))
+        del remaining[best_index]
+
     recommendations = [
         (song, score, format_explanation(song, score, reasons))
-        for song, score, reasons in sorted_songs[:k]
+        for song, score, reasons in selected
     ]
-    
+
     return recommendations

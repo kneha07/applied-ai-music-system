@@ -1,111 +1,56 @@
 # 🎧 Model Card: Music Recommender Simulation
 
-## 1. Model Name  
+## Model Name
 
-Give your model a short, descriptive name.  
-Example: **VibeFinder 1.0**  
-
----
-
-## 2. Intended Use  
-
-Describe what your recommender is designed to do and who it is for. 
-
-Prompts:  
-
-- What kind of recommendations does it generate  
-- What assumptions does it make about the user  
-- Is this for real users or classroom exploration  
+**VibeFinder Lite**
 
 ---
 
-## 3. How the Model Works  
+## Goal / Task
 
-Explain your scoring approach in simple language.  
-
-Prompts:  
-
-- What features of each song are used (genre, energy, mood, etc.)  
-- What user preferences are considered  
-- How does the model turn those into a score  
-- What changes did you make from the starter logic  
-
-Avoid code here. Pretend you are explaining the idea to a friend who does not program.
+This recommender tries to suggest songs that match a user’s mood, energy level, and acoustic or electronic taste. It ranks tracks from a small catalog so the most fitting songs appear first.
 
 ---
 
-## 4. Data  
+## Data Used
 
-Describe the dataset the model uses.  
-
-Prompts:  
-
-- How many songs are in the catalog  
-- What genres or moods are represented  
-- Did you add or remove data  
-- Are there parts of musical taste missing in the dataset  
+The system uses a catalog of 20 songs from `data/songs.csv`. Each song includes features such as genre, mood, energy, tempo, valence, danceability, and acousticness. The dataset is small and does not include every genre, mood, or listening context.
 
 ---
 
-## 5. Strengths  
+## Algorithm Summary
 
-Where does your system seem to work well  
-
-Prompts:  
-
-- User types for which it gives reasonable results  
-- Any patterns you think your scoring captures correctly  
-- Cases where the recommendations matched your intuition  
+The model gives each song a weighted score based on five signals: energy, mood, acousticness, danceability, and valence. A song scores higher when its energy is closer to the user’s target and when its mood matches the user’s mood. Acousticness is scored differently depending on whether the user prefers acoustic or electronic music. Danceability and valence are used to refine the score.
 
 ---
 
-## 6. Limitations and Bias 
+## Observed Behavior / Biases
 
-Where the system struggles or behaves unfairly. 
-
-Prompts:  
-
-- Features it does not consider  
-- Genres or moods that are underrepresented  
-- Cases where the system overfits to one preference  
-- Ways the scoring might unintentionally favor some users  
+The model tends to favor happy, high-energy songs because those are well represented in the dataset. It also prefers electronic tracks when the user says they like electronic sound. The system can struggle with conflicting preferences, such as a sad mood combined with very high energy.
 
 ---
 
-## 7. Evaluation  
+## Evaluation Process
 
-How you checked whether the recommender behaved as expected. 
-
-Prompts:  
-
-- Which user profiles you tested  
-- What you looked for in the recommendations  
-- What surprised you  
-- Any simple tests or comparisons you ran  
-
-No need for numeric metrics unless you created some.
+I tested four user profiles: High-Energy Pop, Chill Lofi, Deep Intense Rock, and Sad Energy Conflict. I checked the top 5 songs for each profile and compared them to the expected mood and energy. I also ran one experiment that ignored mood scoring to see how much mood was affecting the results.
 
 ---
 
-## 8. Future Work  
+## Intended Use and Non-Intended Use
 
-Ideas for how you would improve the model next.  
-
-Prompts:  
-
-- Additional features or preferences  
-- Better ways to explain recommendations  
-- Improving diversity among the top results  
-- Handling more complex user tastes  
+This system is designed for learning and exploring content-based recommendation ideas. It is not meant for real music apps or production use. It should not be used to recommend music without more data, user history, or genre diversity.
 
 ---
 
-## 9. Personal Reflection  
+## Ideas for Improvement
 
-A few sentences about your experience.  
+- Add more song features like genre similarity, instrumentalness, and popularity.
+- Use a continuous acoustic preference instead of a simple acoustic/electronic choice.
+- Add collaborative or hybrid recommendation signals.
+- Increase the catalog size and balance genres and moods.
 
-Prompts:  
+---
 
-- What you learned about recommender systems  
-- Something unexpected or interesting you discovered  
-- How this changed the way you think about music recommendation apps  
+## Personal Reflection
+
+The biggest learning moment was seeing that simple weighted scores can still make recommendations feel meaningful. AI helped speed up the code changes and documentation, but I had to double-check the output logic and the math in the recommender. I was surprised that a small dataset could still separate calm songs from intense ones. Next, I would try adding more features and a more varied dataset to reduce bias.
