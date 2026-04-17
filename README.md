@@ -55,6 +55,7 @@ The project also includes stretch enhancements for extra points:
 - **RAG Enhancement**: custom external genre notes in `data/genre_notes.csv` are used as a second document source for retrieval.
 - **Agentic Workflow Enhancement**: the system exposes retrieval and validation steps, including intermediate document retrieval, scoring, and mood-first fallback behavior.
 - **Fine-Tuning / Specialization**: listening situation profiles adjust model weights for study, party, workout, relax, and night use cases.
+- **Tone / Response Style Adaptation**: the agent can detect company, friendly, or casual tone cues and adapt recommendation phrasing accordingly.
 - **Test Harness / Evaluation Script**: `src/evaluator.py` runs predefined requests and reports pass/fail outcomes, confidence levels, and alignment notes.
 
 ## Core AI Features
@@ -230,12 +231,17 @@ This project taught me how a simple recommendation model can be extended into an
 
 ## Presentation & Portfolio
 
-- Loom walkthrough: https://www.loom.com/share/your-demo-link-here
+- GitHub project: https://github.com/kneha07/applied-ai-music-system
+- Loom walkthrough: `YOUR_LOOM_LINK_HERE` (replace this with your actual Loom video URL)
 - This video should show the system running end-to-end, including:
   - profile-based recommendation output
   - natural language agent request output
   - reliability evaluator summary
   - the system diagram and design rationale
+
+### Portfolio Reflection
+
+This project shows that I can take a prototype recommender from a course assignment and turn it into a complete applied AI system. I designed the pipeline to be explainable, added retrieval and agentic validation layers, and built a real interactive web app for demonstration. It also shows I care about reliability and responsible design by including testing, confidence scoring, and explicit documentation of limitations.
 
 ## Next Improvements
 

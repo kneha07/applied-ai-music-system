@@ -90,6 +90,16 @@ SPECIALIZED_PROFILE_KEYWORDS = {
     'night': ['night', 'midnight', 'late', 'nocturnal', 'emotional'],
 }
 
+TONE_KEYWORDS = {
+    'company': 'company',
+    'corporate': 'company',
+    'business': 'company',
+    'professional': 'company',
+    'friendly': 'friendly',
+    'casual': 'casual',
+    'warm': 'friendly',
+}
+
 @dataclass
 class RecommendationResult:
     request: str
@@ -100,12 +110,7 @@ class RecommendationResult:
     notes: List[str]
     retrieved_docs: Optional[List[Dict]] = None
     specialized_profile: Optional[str] = None
-    request: str
-    user_prefs: Dict
-    mode: str
-    recommendations: List[Tuple[Dict, float, str]]
-    confidence: float
-    notes: List[str]
+    response_tone: Optional[str] = None
 
 
 class RecommendationAgent:
@@ -204,6 +209,12 @@ class RecommendationAgent:
                 specialized_profile = profile
                 break
 
+        response_tone = None
+        for keyword, tone in TONE_KEYWORDS.items():
+            if keyword in text:
+                response_tone = tone
+                break
+
         return {
             'mood': mood,
             'energy': energy,
@@ -216,6 +227,7 @@ class RecommendationAgent:
             'listening_context': listening_context,
             'mode': mode,
             'specialized_profile': specialized_profile,
+            'response_tone': response_tone,
         }
 
     def retrieve_relevant_documents(self, request: str, limit: int = 5) -> List[Dict]:
@@ -363,12 +375,24 @@ class RecommendationAgent:
             notes=[f"Retrieved {len(candidate_songs)} candidate songs."],
             retrieved_docs=retrieved_docs,
             specialized_profile=user_prefs.get('specialized_profile'),
+            response_tone=user_prefs.get('response_tone'),
         )
         result.confidence = self.compute_confidence(result)
         return self.validate_recommendations(request, result)
 
+    def apply_response_tone(self, lines: List[str], tone: Optional[str]) -> List[str]:
+        if tone == 'company':
+            lines.insert(0, 'Recommendation generated in a professional, business-friendly tone.')
+        elif tone == 'friendly':
+            lines.insert(0, 'Here is a friendly and warm music recommendation set for you:')
+        elif tone == 'casual':
+            lines.insert(0, 'Here are some easygoing picks to match your vibe:')
+        return lines
+
     def format_result(self, result: RecommendationResult) -> str:
         lines = [f'Request: {result.request}', f'Mode: {result.mode}', f'Confidence: {result.confidence:.2f}']
+        if result.response_tone:
+            lines.append(f'Response tone: {result.response_tone}')
         lines.append('Preferences:')
         for key in ['mood', 'energy', 'acoustic_preference', 'favorite_genre', 'preferred_decade', 'desired_mood_tags', 'vocal_preference', 'listening_context']:
             value = result.user_prefs.get(key)
@@ -387,6 +411,7 @@ class RecommendationAgent:
             lines.append('\nNotes:')
             for note in result.notes:
                 lines.append(f'  - {note}')
+        lines = self.apply_response_tone(lines, result.response_tone)
         return '\n'.join(lines)
 
 
