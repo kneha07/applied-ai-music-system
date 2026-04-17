@@ -60,3 +60,15 @@ def test_specialized_profile_changes_recommendations():
     specialized = recommend_songs(prefs, songs, k=1, mode='balanced', specialized_profile='party')
 
     assert baseline[0][0] != specialized[0][0] or baseline[0][1] != specialized[0][1]
+
+
+def test_external_genre_documents_are_loaded():
+    songs = load_songs('data/songs.csv')
+    from src.system import RecommendationAgent
+
+    agent = RecommendationAgent(songs)
+    docs = agent.extra_documents
+
+    assert docs
+    assert any(doc.get('genre') == 'lofi' for doc in docs)
+    assert any('Relaxed beats' in doc['doc_text'] or 'Relaxed beats' in doc['description'] for doc in docs)

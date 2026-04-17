@@ -43,15 +43,24 @@ A final validation step checks alignment with requested mood or context and adju
 
 This project implements the full rubric for the final applied AI system:
 
-- **Retrieval-Augmented Generation (RAG)**: the system retrieves relevant song documents from the catalog before ranking recommendations.
+- **Retrieval-Augmented Generation (RAG)**: the system retrieves relevant song documents from the catalog and custom genre notes before ranking recommendations.
 - **Agentic Workflow**: the system plans, retrieves, scores, ranks, validates, and reports confidence for each recommendation request.
 - **Specialized Model**: the recommender supports specialized listening profiles such as study, party, workout, relax, and night.
 - **Reliability Testing**: the repository includes unit tests and a synthetic evaluator harness that measures alignment, confidence, and retrieval behavior.
 
+## Stretch Features
+
+The project also includes stretch enhancements for extra points:
+
+- **RAG Enhancement**: custom external genre notes in `data/genre_notes.csv` are used as a second document source for retrieval.
+- **Agentic Workflow Enhancement**: the system exposes retrieval and validation steps, including intermediate document retrieval, scoring, and mood-first fallback behavior.
+- **Fine-Tuning / Specialization**: listening situation profiles adjust model weights for study, party, workout, relax, and night use cases.
+- **Test Harness / Evaluation Script**: `src/evaluator.py` runs predefined requests and reports pass/fail outcomes, confidence levels, and alignment notes.
+
 ## Core AI Features
 
-- **Retrieval-Augmented Generation (RAG)**: the agent retrieves relevant song documents from the catalog before scoring, so recommendations are grounded in retrieved metadata, mood tags, and listening context.
-- **Agentic Workflow**: the system parses the request, retrieves candidates, scores songs, ranks them, and validates the final output with confidence checks.
+- **Retrieval-Augmented Generation (RAG)**: the agent retrieves relevant song documents from the catalog and custom genre notes before scoring, so recommendations are grounded in retrieved metadata, mood tags, context, and external genre guidance.
+- **Agentic Workflow**: the system parses the request, retrieves candidate documents, scores songs, ranks them, and validates the final output with confidence checks.
 - **Specialized Model Behavior**: tuned recommendation profiles are applied for study, party, workout, relax, and night listening situations, producing different outputs than the baseline scorer.
 - **Reliability System**: the evaluation harness runs synthetic natural-language cases and reports mood/context alignment and confidence for each case.
 

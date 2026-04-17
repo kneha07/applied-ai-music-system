@@ -1,4 +1,6 @@
+import csv
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
@@ -109,8 +111,30 @@ class RecommendationResult:
 class RecommendationAgent:
     """Agentic interface for the music recommender system."""
 
-    def __init__(self, songs: List[Dict]):
+    def __init__(self, songs: List[Dict], extra_documents: Optional[List[Dict]] = None):
         self.songs = songs
+        self.extra_documents = extra_documents or self.load_extra_documents()
+
+    def load_extra_documents(self) -> List[Dict]:
+        base_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'genre_notes.csv')
+        extra_docs: List[Dict] = []
+        if not os.path.exists(base_path):
+            return extra_docs
+
+        with open(base_path, 'r', newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                genre = row.get('genre', '').strip()
+                description = row.get('description', '').strip()
+                if not genre or not description:
+                    continue
+                extra_docs.append({
+                    'type': 'genre_note',
+                    'genre': genre,
+                    'description': description,
+                    'doc_text': f"Genre {genre}: {description}",
+                })
+        return extra_docs
 
     def parse_request(self, request: str) -> Dict:
         text = request.lower()
@@ -219,7 +243,17 @@ class RecommendationAgent:
             doc_text = (
                 f"{song['title']} by {song['artist']} is a {song['genre']} track with mood {song['mood']}, "
                 f"tags {', '.join(song['mood_tags'])}, context {song['listening_context']}.")
-            scored.append({'song': song, 'score': score, 'doc_text': doc_text})
+            scored.append({'song': song, 'score': score, 'doc_text': doc_text, 'source': 'song'})
+
+        for extra in self.extra_documents:
+            score = 0.0
+            text_lower = extra['doc_text'].lower()
+            if any(keyword in text_lower for keyword in keywords):
+                score += 1.0
+            if extra.get('genre') and extra['genre'] in keywords:
+                score += 1.5
+            if score > 0:
+                scored.append({'song': None, 'score': score, 'doc_text': extra['doc_text'], 'source': 'external', 'genre': extra.get('genre')})
 
         scored.sort(key=lambda item: item['score'], reverse=True)
         selected = [item for item in scored if item['score'] > 0][:limit]
@@ -229,7 +263,8 @@ class RecommendationAgent:
                 {
                     'song': song,
                     'score': 0.0,
-                    'doc_text': f"{song['title']} by {song['artist']}"
+                    'doc_text': f"{song['title']} by {song['artist']}",
+                    'source': 'song'
                 }
                 for song in self.songs[:limit]
             ]
@@ -241,9 +276,20 @@ class RecommendationAgent:
         candidate_ids = set()
         for doc in docs:
             song = doc['song']
-            if song['id'] not in candidate_ids:
+            if song and song['id'] not in candidate_ids:
                 candidates.append(song)
                 candidate_ids.add(song['id'])
+
+        for doc in docs:
+            if doc['source'] == 'external' and doc.get('genre'):
+                for song in self.songs:
+                    if song['genre'] == doc['genre'] and song['id'] not in candidate_ids:
+                        candidates.append(song)
+                        candidate_ids.add(song['id'])
+                        if len(candidates) >= limit:
+                            break
+                if len(candidates) >= limit:
+                    break
 
         for song in self.songs:
             if len(candidates) >= limit:
