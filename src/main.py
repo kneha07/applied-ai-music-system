@@ -10,6 +10,7 @@ You will implement the functions in recommender.py:
 """
 
 from .recommender import load_songs, recommend_songs
+from .system import RecommendationAgent, build_sample_requests
 import os
 
 
@@ -172,6 +173,22 @@ def main() -> None:
         ignore_mood=True,
         mode="balanced"
     )
+
+    agent = RecommendationAgent(songs)
+    print("\n" + "="*80)
+    print("🎛️ AGENTIC RECOMMENDER TESTS")
+    print("="*80)
+    for request in build_sample_requests():
+        result = agent.recommend_for_text(request, k=5)
+        print(f"\n🔎 Request: {request}")
+        print(f"Confidence: {result.confidence:.2f}")
+        print(f"Mode: {result.mode}")
+        for rank, (song, score, explanation) in enumerate(result.recommendations, start=1):
+            print(f"  {rank}. {song['title']} ({song['genre']}, {song['mood']}) - {score:.3f}")
+        if result.notes:
+            print("  Notes:")
+            for note in result.notes:
+                print(f"    - {note}")
 
     print(f"\n✅ Evaluation complete! See model_card.md and reflection.md for bias and profile comparisons.\n")
 

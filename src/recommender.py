@@ -162,6 +162,7 @@ def recommend_songs(
     k: int = 5,
     ignore_mood: bool = False,
     mode: str = "balanced",
+    specialized_profile: Optional[str] = None,
     weight_overrides: Optional[Dict[str, float]] = None,
 ) -> List[Tuple[Dict, float, str]]:
     """Generate top-k recommendations with scoring modes and diversity penalty."""
@@ -217,7 +218,57 @@ def recommend_songs(
         },
     }
 
+    specialized_profile_overrides = {
+        'study': {
+            'acousticness': 0.16,
+            'mood_tags': 0.14,
+            'listening_context': 0.10,
+            'energy': 0.10,
+            'danceability': 0.09,
+            'valence': 0.08,
+            'genre': 0.08,
+            'release_decade': 0.06,
+        },
+        'party': {
+            'energy': 0.18,
+            'danceability': 0.16,
+            'genre': 0.10,
+            'mood': 0.12,
+            'mood_tags': 0.10,
+            'popularity': 0.10,
+            'acousticness': 0.06,
+            'speechiness': 0.06,
+            'release_decade': 0.06,
+        },
+        'workout': {
+            'energy': 0.20,
+            'danceability': 0.14,
+            'genre': 0.09,
+            'mood': 0.10,
+            'popularity': 0.10,
+            'instrumentalness': 0.06,
+            'speechiness': 0.06,
+            'mood_tags': 0.08,
+            'acousticness': 0.07,
+            'release_decade': 0.06,
+        },
+        'relax': {
+            'acousticness': 0.16,
+            'valence': 0.14,
+            'mood': 0.11,
+            'mood_tags': 0.10,
+            'genre': 0.09,
+            'energy': 0.07,
+            'release_decade': 0.08,
+            'instrumentalness': 0.08,
+            'speechiness': 0.05,
+            'listening_context': 0.06,
+        },
+    }
+
     final_overrides = {**mode_weight_overrides.get(mode, {}), **(weight_overrides or {})}
+    if specialized_profile:
+        final_overrides = {**final_overrides, **specialized_profile_overrides.get(specialized_profile, {})}
     weights = {**default_weights, **final_overrides}
     total_weight = sum(weights.values())
     if abs(total_weight - 1.0) > 1e-9:

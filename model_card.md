@@ -20,7 +20,9 @@ The system uses a catalog of 20 songs from `data/songs.csv`. Each song includes 
 
 ## Algorithm Summary
 
-The model gives each song a weighted score based on five signals: energy, mood, acousticness, danceability, and valence. A song scores higher when its energy is closer to the user’s target and when its mood matches the user’s mood. Acousticness is scored differently depending on whether the user prefers acoustic or electronic music. Danceability and valence are used to refine the score.
+The system uses a two-stage workflow. First, an agent parses user requests into structured music preferences and retrieves candidate songs from the catalog using genre, mood, context, and tag keywords. This retrieval-augmented process ensures the system looks up relevant song metadata before ranking. Then the recommender scores candidates with a mode-based weighted ranking and a diversity penalty.
+
+The system also applies specialized weight profiles for listening situations such as study, party, workout, and relax. Each recommendation includes a confidence score and a validation step that can retry with a mood-first fallback when the top result does not closely match the user’s intent.
 
 ---
 

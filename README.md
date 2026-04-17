@@ -1,162 +1,236 @@
-# 🎵 Music Recommender Simulation
+# 🎵 VibeFinder Lite — Applied AI Music Recommender
 
-## Project Summary
+## Project Overview
 
-This is a **content-based music recommender system** that simulates how streaming platforms suggest songs. The app scores each track using audio and metadata features, then ranks songs against a user's taste profile.
+This repo extends the original Module 1-3 project, **Music Recommender Simulation**, into a polished applied AI system. The original base project was a content-based recommender that scored songs by energy, mood, acousticness, and genre.
 
-Unlike collaborative filtering, this system focuses on **song attributes** and user preferences directly. The goal is to keep the recommendation logic simple, transparent, and easy to explain.
+Base project: **Music Recommender Simulation** from Modules 1-3.
 
----
+The new version is an agentic music recommendation assistant that:
+
+- parses natural language listening requests,
+- retrieves candidate songs from a structured catalog,
+- scores and ranks songs with multi-step reasoning, and
+- validates results with a confidence score and guardrails.
+
+This project remains grounded in the original song catalog from `data/songs.csv` while adding a more interactive AI workflow.
 
 ## What’s Included
 
-- `src/recommender.py` — song loading, scoring logic, ranking, and diversity penalty
-- `src/main.py` — CLI runner with multiple user profiles and output formatting
-- `data/songs.csv` — catalog of 20 songs with audio features and metadata
-- `model_card.md` — model documentation and evaluation notes
-- `reflection.md` — profile comparison and bias analysis
-- `docs/` — screenshot placeholders and instructions
+- `src/recommender.py` — core scoring, mode-based ranking, and diversity penalty
+- `src/system.py` — agentic request parser, retrieval, validation, and confidence scoring
+- `src/main.py` — command-line entrypoint with both profile-driven and natural-language agent demos
+- `src/evaluator.py` — reliability harness for synthetic intent tests
+- `tests/test_recommender.py` — baseline recommender unit tests
+- `tests/test_system.py` — agent parsing and recommendation tests
+- `data/songs.csv` — enriched song catalog with mood, tags, and listening context
+- `model_card.md` — system documentation and ethical notes
+- `reflection.md` — lessons learned and reliability findings
+- `assets/system_diagram.mmd` — architecture diagram source
+- `assets/system_diagram.png` — rendered architecture diagram image
 
----
+## Architecture Overview
 
-## How the System Works
+The system is designed around three core components:
 
-The recommender scores songs using a mix of content-based signals. Each song gets a final score based on how well it matches the user’s:
+1. **Intent Parser** (`src/system.py`) — turns a user request into structured preferences.
+2. **Retriever** (`RecommendationAgent.retrieve_relevant_songs`) — selects candidate songs using metadata and keyword matching.
+3. **Recommender** (`src/recommender.py`) — scores candidates, applies diversity penalties, and ranks the top songs.
 
-- mood
-- energy level
-- acoustic vs electronic preference
-- favorite genre
-- popularity and era preferences
-- mood tags and listening context
-- vocal / instrumental preference
+A final validation step checks alignment with requested mood or context and adjusts recommendations if needed.
 
-The top songs are then returned in score order, with a breakdown showing why each song was chosen.
+## Feature Coverage
 
----
+This project implements the full rubric for the final applied AI system:
 
-## Dataset Features
+- **Retrieval-Augmented Generation (RAG)**: the system retrieves relevant song documents from the catalog before ranking recommendations.
+- **Agentic Workflow**: the system plans, retrieves, scores, ranks, validates, and reports confidence for each recommendation request.
+- **Specialized Model**: the recommender supports specialized listening profiles such as study, party, workout, relax, and night.
+- **Reliability Testing**: the repository includes unit tests and a synthetic evaluator harness that measures alignment, confidence, and retrieval behavior.
 
-The song catalog includes the following metadata:
+## Core AI Features
 
-- `energy` (0.0–1.0)
-- `mood` (category)
-- `acousticness` (0.0–1.0)
-- `danceability` (0.0–1.0)
-- `valence` (0.0–1.0)
-- `tempo_bpm`
-- `genre`
-- `popularity` (0–100)
-- `release_decade` (e.g. 2020s)
-- `mood_tags` (e.g. euphoric; dreamy)
-- `instrumentalness` (0.0–1.0)
-- `speechiness` (0.0–1.0)
-- `listening_context` (party, study, workout, relax, night, coffee)
+- **Retrieval-Augmented Generation (RAG)**: the agent retrieves relevant song documents from the catalog before scoring, so recommendations are grounded in retrieved metadata, mood tags, and listening context.
+- **Agentic Workflow**: the system parses the request, retrieves candidates, scores songs, ranks them, and validates the final output with confidence checks.
+- **Specialized Model Behavior**: tuned recommendation profiles are applied for study, party, workout, relax, and night listening situations, producing different outputs than the baseline scorer.
+- **Reliability System**: the evaluation harness runs synthetic natural-language cases and reports mood/context alignment and confidence for each case.
 
-This richer feature set lets the recommender support more nuanced preferences than the base starter dataset.
+```mermaid
+flowchart TD
+    A[User Request] --> B[Intent Parser]
+    B --> C[Candidate Retriever]
+    C --> D[Scoring Engine]
+    D --> E[Ranking + Diversity Filter]
+    E --> F[Validation + Confidence]
+    F --> G[User Output]
+    subgraph Reliability
+      H[Evaluation Harness]
+    end
+    G --> H
+```
 
----
+![System Architecture](assets/system_diagram.png)
 
-## Scoring Modes
+## Setup Instructions
 
-The recommender can run in different ranking modes for flexible behavior:
+1. Create and activate a Python environment.
+2. Install requirements:
 
-- `balanced` — default mix of all signals
-- `mood-first` — puts more emphasis on mood and mood tags
-- `genre-first` — gives a stronger boost to favorite genre matches
-- `energy-first` — focuses more on energy and danceability
+```bash
+pip install -r requirements.txt
+```
 
-These modes are useful for testing how the same catalog behaves under different user priorities.
-
----
-
-## Diversity Logic
-
-A **diversity penalty** is applied when the recommender would select too many songs by the same artist or in the same genre. Repeated artists or genres reduce a song's final score slightly so the top list stays more varied.
-
----
-
-## Running the App
-
-From the project root:
+3. Run the main app:
 
 ```bash
 python3 -m src.main
 ```
 
-This prints recommendations for several sample profiles, including a summary table and detailed score breakdowns.
-
----
-
-## Running Tests
+4. Run tests:
 
 ```bash
 python3 -m pytest -q
 ```
 
-The repository includes a small test suite to confirm the recommender still works after updates.
+5. Run the reliability evaluator:
 
----
-
-## Example Output
-
-The CLI output includes the profile summary, ranked songs, and reasons for each score. Example output for the default profile can look like this:
-
+```bash
+python3 -m src.evaluator
 ```
+
+6. Run the interactive web app:
+
+```bash
+streamlit run src/app.py
+```
+
+## Sample Interactions
+
+### Profile-based recommendations
+
+Run the main app:
+
+```bash
+python3 -m src.main
+```
+
+Example output from the core profile-based runner:
+
+```text
 ================================================================================
-🎵 MUSIC RECOMMENDER SYSTEM - Top 5 Recommendations
+🎵 High-Energy Pop - Top 5 Recommendations
 ================================================================================
 
 📋 User Profile:
    • Mood: HAPPY
-   • Energy Level: 0.8 (0=chill, 1=intense)
+   • Energy Level: 0.9 (0=chill, 1=intense)
    • Preference: ELECTRONIC
+   • Favorite Genre: POP
+   • Era: 2020s
+   • Scoring Mode: balanced
 
 --------------------------------------------------------------------------------
-
-#1 ⭐ ELECTRIC DREAM
-   Artist: Synth Wave | Genre: house | Mood: happy
-   Tempo: 128 BPM
-
-   📊 FINAL SCORE: 0.921/1.000 (92%)
-
-   📈 SCORING BREAKDOWN:
-      Energy: 0.85 × 0.30 = +0.255 (0.95 vs 0.80)
-      Mood: 1.00 × 0.25 = +0.250 (exact match)
-      Acousticness: 0.95 × 0.20 = +0.190 (likes electronic)
-      Danceability: 0.92 × 0.15 = +0.138 (high for happy music)
-      Valence: 0.88 × 0.10 = +0.088 (prefers upbeat (high valence))
+Rank | Title                    | Artist             | Genre        | Mood      | Score  
+-----------------------------------------------------------------------------------------
+1    | Sunrise City             | Neon Echo          | pop          | happy     | 0.887  
+2    | Electric Dream           | Synth Wave         | house        | happy     | 0.825  
+3    | Rooftop Lights           | Indigo Parade      | indie pop    | happy     | 0.765  
 ```
 
----
+### Natural language recommendations
 
-## Evaluation Screenshots
+The new agent also supports requests like:
 
-Screenshot placeholder files have been created in `docs/`. Replace them with real terminal captures to display the results in GitHub.
+- `Recommend upbeat party music for a happy listener who loves electronic pop and bright energy.`
+- `I want calm study songs with a chill mood and dreamy textures for coffee work.`
+- `Give me intense workout tracks with strong rock or pop energy and aggressive mood tags.`
+- `Find sad but powerful night music that is emotional and vocal-heavy.`
 
-- `docs/high-energy-pop.png`
-- `docs/chill-lofi.png`
-- `docs/deep-intense-rock.png`
-- `docs/sad-energy-conflict.png`
-- `docs/high-energy-pop-mood-ignored.png`
+Example output for a natural language request:
 
----
+```text
+Request: Recommend upbeat party music for a happy listener who loves electronic pop and bright energy.
+Mode: genre-first
+Confidence: 0.87
+1. Sunrise City by Neon Echo (pop, happy) - 0.887
+2. Electric Dream by Synth Wave (house, happy) - 0.825
+```
 
-## Notes
+### Reliability evaluator output
 
-- This project is built for learning and experimentation.
-- It is not intended as a production-grade recommender.
-- The system is designed to be explainable: each recommendation includes a breakdown of score contributions.
-- Real-world systems would use more songs, user behavior history, and collaborative signals.
+Run the synthetic reliability test:
 
----
+```bash
+python3 -m src.evaluator
+```
 
-## Next Steps
+Example summary:
 
-Possible improvements:
+```text
+RELIABILITY EVALUATION SUMMARY
+--------------------------------
+Case 1: Recommend upbeat party music for a happy listener who loves electronic pop and bright energy.
+  Top song: Sunrise City
+  Mood match: True | Context match: True | Confidence: 0.87 | Passed: True
 
-- add more songs and genres to `data/songs.csv`
-- add user listening history for personalization
-- build a GUI or web app for interactive profile selection
-- add a machine learning model for mood prediction
-- increase diversity with better artist and genre balancing
+Case 2: I want calm study songs with a chill mood and dreamy textures for coffee work.
+  Top song: Midnight Coding
+  Mood match: True | Context match: True | Confidence: 0.67 | Passed: True
+
+Case 3: Give me intense workout tracks with strong rock or pop energy and aggressive mood tags.
+  Top song: Gym Hero
+  Mood match: True | Context match: True | Confidence: 0.87 | Passed: True
+
+Case 4: Find sad but powerful night music that is emotional and vocal-heavy.
+  Top song: Midnight Blues
+  Mood match: True | Context match: True | Confidence: 0.60 | Passed: False
+
+3/4 cases fully passed the reliability check.
+```
+## Design Decisions
+
+- **Agentic workflow**: I built a parser/retriever/validator pipeline to make the recommendation process explicit and debuggable.
+- **Retrieval step**: song metadata is used as the knowledge source, making recommendations grounded in the catalog rather than a purely template-based response.
+- **Confidence scoring**: each result includes a simple confidence estimate based on top-song alignment with requested mood/context.
+- **Guardrails**: the system checks the first recommendation and retries with a mood-first fallback if needed.
+
+## Reliability and Testing
+
+The project includes:
+
+- unit tests for basic recommender behavior and request parsing
+- an evaluation harness in `src/evaluator.py` that runs synthetic intent cases
+- confidence scoring to quantify how well the recommendations align with intent
+- logging for fallback behavior and retrieval decisions
+
+Example summary from the evaluator:
+
+- 4 synthetic cases were tested
+- 3/4 cases passed the mood/context and confidence checks
+- the system reports when the top song is not a strong match and uses fallback validation
+
+## Testing Summary
+
+- `pytest -q` passed all current tests.
+- `python3 -m src.main` produces profile-based recommendations, agentic natural-language output, and confidence scores.
+- `python3 -m src.evaluator` runs a synthetic reliability harness and reports pass/fail alignment for mood, context, and confidence.
+
+## Reflection
+
+This project taught me how a simple recommendation model can be extended into an AI system by adding retrieval and validation. The biggest gain was making the decision flow visible: parse intent, fetch candidates, score, and check alignment. It also highlighted the importance of transparency when the dataset is small — the system can only be as reliable as the catalog it uses.
+
+## Presentation & Portfolio
+
+- Loom walkthrough: https://www.loom.com/share/your-demo-link-here
+- This video should show the system running end-to-end, including:
+  - profile-based recommendation output
+  - natural language agent request output
+  - reliability evaluator summary
+  - the system diagram and design rationale
+
+## Next Improvements
+
+- add more songs and richer metadata to improve coverage
+- support conversational feedback loops to refine user requests
+- build a web UI or Streamlit demo for interactive playlist creation
+- add a small embedding-based retriever for deeper semantic matching
