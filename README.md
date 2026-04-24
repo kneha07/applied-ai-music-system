@@ -8,41 +8,44 @@ Base project: **Music Recommender Simulation** from Modules 1-3.
 
 The new version is an agentic music recommendation assistant that:
 
-- parses natural language listening requests,
+- uses the **Claude API** to parse natural language listening requests into structured preferences,
 - retrieves candidate songs from a structured catalog,
-- scores and ranks songs with multi-step reasoning, and
-- validates results with a confidence score and guardrails.
+- scores and ranks songs with multi-step reasoning,
+- validates results with a confidence score and guardrails, and
+- uses Claude to generate a natural language explanation of why each playlist was recommended.
 
 This project remains grounded in the original song catalog from `data/songs.csv` while adding a more interactive AI workflow.
 
 ## What’s Included
 
+- `src/claude_client.py` — Claude API integration: mood parsing (structured output) and recommendation explanation (streaming)
 - `src/recommender.py` — core scoring, mode-based ranking, and diversity penalty
 - `src/system.py` — agentic request parser, retrieval, validation, and confidence scoring
 - `src/main.py` — command-line entrypoint with both profile-driven and natural-language agent demos
 - `src/evaluator.py` — reliability harness for synthetic intent tests
+- `app.py` — polished Streamlit web UI with Claude-powered natural language tab
 - `tests/test_recommender.py` — baseline recommender unit tests
 - `tests/test_system.py` — agent parsing and recommendation tests
 - `data/songs.csv` — enriched song catalog with mood, tags, and listening context
 - `model_card.md` — system documentation and ethical notes
 - `reflection.md` — lessons learned and reliability findings
-- `assets/system_diagram.mmd` — architecture diagram source
-- `assets/system_diagram.png` — rendered architecture diagram image
 
 ## Architecture Overview
 
-The system is designed around three core components:
+The system is designed around four core components:
 
-1. **Intent Parser** (`src/system.py`) — turns a user request into structured preferences.
+1. **Claude Intent Parser** (`src/claude_client.py` + `src/system.py`) — sends the user's natural language request to `claude-opus-4-7` with a structured JSON output schema to extract mood, energy, genre, context, and other preferences. Falls back to keyword matching if the API key is not set.
 2. **Retriever** (`RecommendationAgent.retrieve_relevant_songs`) — selects candidate songs using metadata and keyword matching.
-3. **Recommender** (`src/recommender.py`) — scores candidates, applies diversity penalties, and ranks the top songs.
+3. **Recommender** (`src/recommender.py`) — scores candidates with weighted features, applies diversity penalties, and ranks the top songs.
+4. **Claude Explanation** (`src/claude_client.py`) — after ranking, calls Claude via streaming to write a warm 2–3 sentence explanation of why the playlist matches the user's request.
 
-A final validation step checks alignment with requested mood or context and adjusts recommendations if needed.
+A validation step checks alignment with the requested mood or context and adjusts recommendations if needed.
 
 ## Feature Coverage
 
 This project implements the full rubric for the final applied AI system:
 
+- **Claude API Integration**: natural language mood input is parsed by `claude-opus-4-7` using structured outputs (Pydantic schema), and Claude generates a personalized explanation for each recommendation result.
 - **Retrieval-Augmented Generation (RAG)**: the system retrieves relevant song documents from the catalog and custom genre notes before ranking recommendations.
 - **Agentic Workflow**: the system plans, retrieves, scores, ranks, validates, and reports confidence for each recommendation request.
 - **Specialized Model**: the recommender supports specialized listening profiles such as study, party, workout, relax, and night.
@@ -60,23 +63,26 @@ The project also includes stretch enhancements for extra points:
 
 ## Core AI Features
 
-- **Retrieval-Augmented Generation (RAG)**: the agent retrieves relevant song documents from the catalog and custom genre notes before scoring, so recommendations are grounded in retrieved metadata, mood tags, context, and external genre guidance.
+- **Claude API — Structured Mood Parsing**: natural language input (e.g. "I'm feeling nostalgic and melancholic tonight") is sent to `claude-opus-4-7` with a Pydantic JSON schema, which returns validated structured preferences (mood, energy, genre, context, tags). The system prompt is prompt-cached to reduce latency on repeated requests. Falls back to keyword matching if `ANTHROPIC_API_KEY` is not set.
+- **Claude API — Recommendation Explanation**: after ranking songs, Claude streams a 2–3 sentence explanation of why the playlist fits the user's request. Shown in the "Why these songs?" section of the web app.
+- **Retrieval-Augmented Generation (RAG)**: the agent retrieves relevant song documents from the catalog and custom genre notes before scoring, grounding recommendations in retrieved metadata, mood tags, context, and external genre guidance.
 - **Agentic Workflow**: the system parses the request, retrieves candidate documents, scores songs, ranks them, and validates the final output with confidence checks.
-- **Specialized Model Behavior**: tuned recommendation profiles are applied for study, party, workout, relax, and night listening situations, producing different outputs than the baseline scorer.
+- **Specialized Model Behavior**: tuned recommendation profiles are applied for study, party, workout, relax, and night listening situations.
 - **Reliability System**: the evaluation harness runs synthetic natural-language cases and reports mood/context alignment and confidence for each case.
 
 ```mermaid
 flowchart TD
-    A[User Request] --> B[Intent Parser]
+    A[User Request] --> B[Claude Intent Parser\nclaude-opus-4-7]
     B --> C[Candidate Retriever]
     C --> D[Scoring Engine]
     D --> E[Ranking + Diversity Filter]
     E --> F[Validation + Confidence]
-    F --> G[User Output]
+    F --> G[Claude Explanation\nstreaming]
+    G --> H[User Output]
     subgraph Reliability
-      H[Evaluation Harness]
+      I[Evaluation Harness]
     end
-    G --> H
+    H --> I
 ```
 
 ![System Architecture](assets/system_diagram.png)
@@ -90,28 +96,36 @@ flowchart TD
 pip install -r requirements.txt
 ```
 
-3. Run the main app:
+3. Set your Anthropic API key (required for Claude-powered parsing and explanations):
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+```
+
+> Without this key the app still works — it falls back to keyword-based parsing and skips the AI explanation.
+
+4. Run the main app:
 
 ```bash
 python3 -m src.main
 ```
 
-4. Run tests:
+5. Run tests:
 
 ```bash
 python3 -m pytest -q
 ```
 
-5. Run the reliability evaluator:
+6. Run the reliability evaluator:
 
 ```bash
 python3 -m src.evaluator
 ```
 
-6. Run the interactive web app:
+7. Run the interactive web app:
 
 ```bash
-streamlit run src/app.py
+streamlit run app.py
 ```
 
 ## Sample Interactions
@@ -232,7 +246,7 @@ This project taught me how a simple recommendation model can be extended into an
 ## Presentation & Portfolio
 
 - GitHub project: https://github.com/kneha07/applied-ai-music-system
-- Loom walkthrough: `YOUR_LOOM_LINK_HERE` (replace this with your actual Loom video URL)
+- Loom walkthrough: https://www.loom.com/share/4190bc0d238745ada35a814a835d8754
 - This video should show the system running end-to-end, including:
   - profile-based recommendation output
   - natural language agent request output
@@ -246,6 +260,6 @@ This project shows that I can take a prototype recommender from a course assignm
 ## Next Improvements
 
 - add more songs and richer metadata to improve coverage
-- support conversational feedback loops to refine user requests
-- build a web UI or Streamlit demo for interactive playlist creation
-- add a small embedding-based retriever for deeper semantic matching
+- support conversational feedback loops so Claude can ask clarifying questions
+- add an embedding-based retriever for deeper semantic matching
+- use Claude tool use to let the agent query the catalog dynamically

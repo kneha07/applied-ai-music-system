@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from .recommender import recommend_songs
+from .claude_client import generate_recommendation_explanation, parse_mood_input
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -111,6 +112,7 @@ class RecommendationResult:
     retrieved_docs: Optional[List[Dict]] = None
     specialized_profile: Optional[str] = None
     response_tone: Optional[str] = None
+    ai_explanation: Optional[str] = None
 
 
 class RecommendationAgent:
@@ -143,6 +145,8 @@ class RecommendationAgent:
 
     def parse_request(self, request: str) -> Dict:
         text = request.lower()
+
+        # Keyword-based fallback parsing
         mood = 'happy'
         for keyword, mapped in MOOD_KEYWORDS.items():
             if keyword in text:
@@ -193,6 +197,21 @@ class RecommendationAgent:
         for keyword in ['dreamy', 'bright', 'aggressive', 'powerful', 'mellow', 'euphoric', 'nostalgic', 'emotional', 'festive', 'cozy', 'warm', 'smooth', 'cosmic']:
             if keyword in text:
                 desired_mood_tags.append(keyword)
+
+        # Override with Claude's deeper NLU when the API key is available
+        try:
+            claude_prefs = parse_mood_input(request)
+            mood = claude_prefs.get('mood', mood)
+            energy = claude_prefs.get('energy', energy)
+            acoustic_preference = claude_prefs.get('acoustic_preference', acoustic_preference)
+            preferred_genre = claude_prefs.get('favorite_genre', preferred_genre)
+            listening_context = claude_prefs.get('listening_context', listening_context)
+            preferred_decade = claude_prefs.get('preferred_decade', preferred_decade)
+            target_popularity = claude_prefs.get('target_popularity', target_popularity)
+            vocal_preference = claude_prefs.get('vocal_preference', vocal_preference)
+            desired_mood_tags = claude_prefs.get('desired_mood_tags', desired_mood_tags)
+        except Exception as e:
+            logger.warning('Claude parsing unavailable, using keyword matching: %s', e)
 
         mode = 'balanced'
         if preferred_genre:
@@ -378,7 +397,16 @@ class RecommendationAgent:
             response_tone=user_prefs.get('response_tone'),
         )
         result.confidence = self.compute_confidence(result)
-        return self.validate_recommendations(request, result)
+        result = self.validate_recommendations(request, result)
+
+        try:
+            result.ai_explanation = generate_recommendation_explanation(
+                request, result.recommendations, user_prefs
+            )
+        except Exception as e:
+            logger.warning('Claude explanation unavailable: %s', e)
+
+        return result
 
     def apply_response_tone(self, lines: List[str], tone: Optional[str]) -> List[str]:
         if tone == 'company':
