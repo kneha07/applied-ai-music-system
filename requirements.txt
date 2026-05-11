@@ -1,4 +1,5 @@
 anthropic
 pandas
 pytest
+requests
 streamlit

@@ -1,5 +1,5 @@
 from typing import List, Dict, Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import csv
 
 @dataclass
@@ -18,6 +18,12 @@ class Song:
     valence: float
     danceability: float
     acousticness: float
+    popularity: int = 70
+    release_decade: str = "2020s"
+    mood_tags: List[str] = field(default_factory=list)
+    instrumentalness: float = 0.0
+    speechiness: float = 0.0
+    listening_context: str = "general"
 
 @dataclass
 class UserProfile:
@@ -29,91 +35,258 @@ class UserProfile:
     favorite_mood: str
     target_energy: float
     likes_acoustic: bool
+    target_popularity: int = 70
+    preferred_decade: str = None
+    desired_mood_tags: List[str] = field(default_factory=list)
+    vocal_preference: str = "vocal"
+    listening_context: str = None
+
+# Shared scoring constants — used by both Recommender class and recommend_songs function.
+# Override dicts intentionally list only the features being adjusted; unspecified features
+# retain their default values and the full dict is renormalized to 1.0.
+# Use resolve_weights() to inspect the final effective weights for any combination.
+DEFAULT_WEIGHTS: Dict[str, float] = {
+    'energy': 0.15,
+    'mood': 0.12,
+    'genre': 0.11,
+    'acousticness': 0.09,
+    'danceability': 0.09,
+    'valence': 0.07,
+    'popularity': 0.08,
+    'release_decade': 0.06,
+    'mood_tags': 0.08,
+    'instrumentalness': 0.06,
+    'speechiness': 0.05,
+    'listening_context': 0.04,
+}
+
+MODE_WEIGHT_OVERRIDES: Dict[str, Dict[str, float]] = {
+    'balanced': {},
+    'mood-first': {
+        'mood': 0.16,
+        'mood_tags': 0.12,
+        'valence': 0.11,
+        'energy': 0.14,
+        'genre': 0.10,
+        'release_decade': 0.05,
+        'listening_context': 0.05,
+    },
+    'genre-first': {
+        'genre': 0.18,
+        'mood': 0.13,
+        'energy': 0.13,
+        'popularity': 0.10,
+        'acousticness': 0.08,
+        'danceability': 0.08,
+        'valence': 0.07,
+        'mood_tags': 0.07,
+        'release_decade': 0.05,
+        'listening_context': 0.05,
+    },
+    'energy-first': {
+        'energy': 0.22,
+        'danceability': 0.14,
+        'genre': 0.09,
+        'mood': 0.11,
+        'acousticness': 0.08,
+        'popularity': 0.08,
+        'mood_tags': 0.08,
+        'valence': 0.08,
+        'instrumentalness': 0.06,
+        'speechiness': 0.05,
+    },
+}
+
+SPECIALIZED_PROFILE_OVERRIDES: Dict[str, Dict[str, float]] = {
+    'study': {
+        'acousticness': 0.16,
+        'mood_tags': 0.14,
+        'listening_context': 0.10,
+        'energy': 0.10,
+        'danceability': 0.09,
+        'valence': 0.08,
+        'genre': 0.08,
+        'release_decade': 0.06,
+    },
+    'party': {
+        'energy': 0.18,
+        'danceability': 0.16,
+        'genre': 0.10,
+        'mood': 0.12,
+        'mood_tags': 0.10,
+        'popularity': 0.10,
+        'acousticness': 0.06,
+        'speechiness': 0.06,
+        'release_decade': 0.06,
+    },
+    'workout': {
+        'energy': 0.20,
+        'danceability': 0.14,
+        'genre': 0.09,
+        'mood': 0.10,
+        'popularity': 0.10,
+        'instrumentalness': 0.06,
+        'speechiness': 0.06,
+        'mood_tags': 0.08,
+        'acousticness': 0.07,
+        'release_decade': 0.06,
+    },
+    'relax': {
+        'acousticness': 0.16,
+        'valence': 0.14,
+        'mood': 0.11,
+        'mood_tags': 0.10,
+        'genre': 0.09,
+        'energy': 0.07,
+        'release_decade': 0.08,
+        'instrumentalness': 0.08,
+        'speechiness': 0.05,
+        'listening_context': 0.06,
+    },
+}
+
 
 class Recommender:
     """
     OOP implementation of the recommendation logic.
     Required by tests/test_recommender.py
     """
-    def __init__(self, songs: List[Song]):
+    def __init__(self, songs: List[Dict]):
         self.songs = songs
+        self.default_weights = DEFAULT_WEIGHTS
+        self.mode_weight_overrides = MODE_WEIGHT_OVERRIDES
+        self.specialized_profile_overrides = SPECIALIZED_PROFILE_OVERRIDES
 
-    def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
+    def recommend(self, user_prefs: Dict, k: int = 5, mode: str = "balanced", specialized_profile: Optional[str] = None, weight_overrides: Optional[Dict[str, float]] = None) -> List[Tuple[Dict, float, str]]:
         """Return top-k song recommendations for user using weighted proximity scoring."""
+        """Return top-k song recommendations for user using weighted proximity scoring."""
+        # Resolve weights
+        final_overrides = {**self.mode_weight_overrides.get(mode, {}), **(weight_overrides or {})}
+        if specialized_profile:
+            final_overrides = {**final_overrides, **self.specialized_profile_overrides.get(specialized_profile, {})}
+        weights = {**self.default_weights, **final_overrides}
+        total_weight = sum(weights.values())
+        if abs(total_weight - 1.0) > 1e-9:
+            weights = {feature: weight / total_weight for feature, weight in weights.items()}
+
         scored_songs = [
-            (song, self._score_song(user, song))
+            (song, self._score_song(user_prefs, song, weights), self.explain_recommendation(user_prefs, song))
             for song in self.songs
         ]
         # Sort by score descending, return top k
         top_songs = sorted(scored_songs, key=lambda x: x[1], reverse=True)
-        return [song for song, _ in top_songs[:k]]
+        return top_songs[:k]
 
-    def _score_song(self, user: UserProfile, song: Song) -> float:
-        """Compute 5-feature weighted recommendation score for song given user profile (0.0-1.0)."""
+    def _score_song(self, user_prefs: Dict, song: Dict, weights: Dict[str, float]) -> float:
+        """Compute 12-feature weighted recommendation score for song given user profile (0.0-1.0)."""
+        
         score = 0.0
         
-        # 0.30 weight: Energy matching (0-1)
-        # User prefers songs close to their target energy
-        energy_diff = abs(song.energy - user.target_energy)
-        energy_score = 1.0 - energy_diff  # Inverse of difference
-        score += 0.30 * energy_score
+        # Energy
+        energy_diff = abs(song['energy'] - user_prefs.get('energy', 0.5))
+        energy_score = max(0.0, 1.0 - energy_diff)
+        score += weights['energy'] * energy_score
         
-        # 0.25 weight: Mood matching (exact match gets full score)
-        mood_score = 1.0 if song.mood == user.favorite_mood else 0.5
-        score += 0.25 * mood_score
+        # Mood
+        mood_match = song['mood'] == user_prefs.get('mood', 'happy')
+        mood_score = 1.0 if mood_match else 0.5
+        score += weights['mood'] * mood_score
         
-        # 0.20 weight: Acousticness preference
-        if user.likes_acoustic:
-            acousticness_score = song.acousticness  # Prefer high acousticness
+        # Genre
+        genre_score = 1.0 if user_prefs.get('favorite_genre') and song['genre'] == user_prefs.get('favorite_genre') else 0.5
+        score += weights['genre'] * genre_score
+        
+        # Acousticness
+        likes_acoustic = user_prefs.get('acoustic_preference', 'mixed') == 'acoustic'
+        if likes_acoustic:
+            acousticness_score = song['acousticness']
         else:
-            acousticness_score = 1.0 - song.acousticness  # Prefer low acousticness
-        score += 0.20 * acousticness_score
+            acousticness_score = 1.0 - song['acousticness']
+        score += weights['acousticness'] * acousticness_score
         
-        # 0.15 weight: Danceability bonus for happy/intense moods
-        if song.mood in ["happy", "intense"]:
-            danceability_score = song.danceability
+        # Danceability
+        if song['mood'] in ['happy', 'intense']:
+            danceability_score = song['danceability']
         else:
-            danceability_score = 0.5  # Neutral weight for chill/relaxed
-        score += 0.15 * danceability_score
+            danceability_score = 0.5
+        score += weights['danceability'] * danceability_score
         
-        # 0.10 weight: Valence (musical positivity)
-        # For happy moods, higher valence is better; for sad moods, lower is better
-        if user.favorite_mood == "happy":
-            valence_score = song.valence
-        elif user.favorite_mood in ["chill", "relaxed"]:
-            valence_score = 1.0 - song.valence  # Prefer lower valence
+        # Valence
+        favorite_mood = user_prefs.get('mood', 'happy')
+        if favorite_mood == 'happy':
+            valence_score = song['valence']
+        elif favorite_mood in ['chill', 'relaxed']:
+            valence_score = 1.0 - song['valence']
         else:
-            valence_score = 0.5  # Neutral for other moods
-        score += 0.10 * valence_score
+            valence_score = 0.5
+        score += weights['valence'] * valence_score
+        
+        # Popularity
+        target_popularity = user_prefs.get('target_popularity', 70)
+        popularity_diff = abs(song['popularity'] - target_popularity) / 100.0
+        popularity_score = max(0.0, 1.0 - popularity_diff)
+        score += weights['popularity'] * popularity_score
+        
+        # Release Decade
+        preferred_decade = user_prefs.get('preferred_decade')
+        decade_score = 1.0 if preferred_decade and song['release_decade'] == preferred_decade else 0.5
+        score += weights['release_decade'] * decade_score
+        
+        # Mood Tags
+        desired_mood_tags = user_prefs.get('desired_mood_tags', [])
+        if desired_mood_tags and song['mood_tags']:
+            tag_matches = sum(1 for tag in desired_mood_tags if tag in song['mood_tags'])
+            mood_tag_score = min(1.0, tag_matches / len(desired_mood_tags))
+        else:
+            mood_tag_score = 0.5
+        score += weights['mood_tags'] * mood_tag_score
+        
+        # Instrumentalness and Speechiness
+        vocal_preference = user_prefs.get('vocal_preference', 'vocal')
+        if vocal_preference == 'instrumental':
+            instrumentalness_score = song['instrumentalness']
+            speechiness_score = 1.0 - song['speechiness']
+        else:
+            instrumentalness_score = 1.0 - song['instrumentalness']
+            speechiness_score = song['speechiness']
+        score += weights['instrumentalness'] * instrumentalness_score
+        score += weights['speechiness'] * speechiness_score
+        
+        # Listening Context
+        listening_context = user_prefs.get('listening_context')
+        if listening_context:
+            context_score = 1.0 if song['listening_context'] == listening_context else 0.5
+            score += weights['listening_context'] * context_score
         
         return score
 
-    def explain_recommendation(self, user: UserProfile, song: Song) -> str:
+    def explain_recommendation(self, user_prefs: Dict, song: Dict) -> str:
         """Generate human-readable explanation of why this song was recommended."""
         reasons = []
         
         # Energy explanation
-        energy_diff = abs(song.energy - user.target_energy)
+        energy_diff = abs(song['energy'] - user_prefs.get('energy', 0.5))
         if energy_diff < 0.2:
-            reasons.append(f"energy level matches your preference ({song.energy:.1f})")
+            reasons.append(f"energy level matches your preference ({song['energy']:.1f})")
         
         # Mood explanation
-        if song.mood == user.favorite_mood:
-            reasons.append(f"perfect {song.mood} mood match")
+        if song['mood'] == user_prefs.get('mood', 'happy'):
+            reasons.append(f"perfect {song['mood']} mood match")
         
         # Acousticness explanation
-        if user.likes_acoustic and song.acousticness > 0.6:
+        likes_acoustic = user_prefs.get('acoustic_preference', 'mixed') == 'acoustic'
+        if likes_acoustic and song['acousticness'] > 0.6:
             reasons.append("has that acoustic vibe you enjoy")
-        elif not user.likes_acoustic and song.acousticness < 0.3:
+        elif not likes_acoustic and song['acousticness'] < 0.3:
             reasons.append("features electronic production you prefer")
         
         # Danceability explanation
-        if song.danceability > 0.75:
+        if song['danceability'] > 0.75:
             reasons.append("very danceable")
         
         # Genre explanation
-        if song.genre == user.favorite_genre:
-            reasons.append(f"in your favorite genre ({song.genre})")
+        if song['genre'] == user_prefs.get('favorite_genre'):
+            reasons.append(f"in your favorite genre ({song['genre']})")
         
         if not reasons:
             reasons.append("fits your music taste profile")
@@ -156,6 +329,46 @@ def load_songs(csv_path: str) -> List[Dict]:
     return songs
 
 
+def resolve_weights(
+    default_weights: Dict[str, float],
+    mode_overrides: Optional[Dict[str, float]] = None,
+    profile_overrides: Optional[Dict[str, float]] = None,
+) -> Dict[str, float]:
+    """
+    Resolve final effective weights after applying mode and specialized profile overrides.
+
+    This helper clarifies what the actual normalized weights will be for any combination of
+    mode and specialized profile. Useful for debugging weight assignment logic.
+
+    Args:
+        default_weights: Base weight dictionary
+        mode_overrides: Mode-specific weight overrides (e.g., 'mood-first' overrides)
+        profile_overrides: Specialized profile overrides (e.g., 'study' profile)
+
+    Returns:
+        Final normalized weight dictionary (sums to 1.0)
+
+    Example:
+        >>> defaults = {'energy': 0.15, 'mood': 0.12, ...}
+        >>> mood_first = {'mood': 0.16, 'mood_tags': 0.12, ...}
+        >>> final = resolve_weights(defaults, mood_first)
+        >>> sum(final.values())  # == 1.0
+    """
+    weights = {**default_weights}
+
+    if mode_overrides:
+        weights.update(mode_overrides)
+    if profile_overrides:
+        weights.update(profile_overrides)
+
+    # Renormalize to sum to exactly 1.0
+    total_weight = sum(weights.values())
+    if abs(total_weight - 1.0) > 1e-9:
+        weights = {feature: weight / total_weight for feature, weight in weights.items()}
+
+    return weights
+
+
 def recommend_songs(
     user_prefs: Dict,
     songs: List[Dict],
@@ -166,106 +379,15 @@ def recommend_songs(
     weight_overrides: Optional[Dict[str, float]] = None,
 ) -> List[Tuple[Dict, float, str]]:
     """Generate top-k recommendations with scoring modes and diversity penalty."""
-    default_weights = {
-        'energy': 0.15,
-        'mood': 0.12,
-        'genre': 0.11,
-        'acousticness': 0.09,
-        'danceability': 0.09,
-        'valence': 0.07,
-        'popularity': 0.08,
-        'release_decade': 0.06,
-        'mood_tags': 0.08,
-        'instrumentalness': 0.06,
-        'speechiness': 0.05,
-        'listening_context': 0.04,
-    }
+    default_weights = DEFAULT_WEIGHTS
+    mode_weight_overrides = MODE_WEIGHT_OVERRIDES
+    specialized_profile_overrides = SPECIALIZED_PROFILE_OVERRIDES
 
-    mode_weight_overrides = {
-        'balanced': {},
-        'mood-first': {
-            'mood': 0.16,
-            'mood_tags': 0.12,
-            'valence': 0.11,
-            'energy': 0.14,
-            'genre': 0.10,
-            'release_decade': 0.05,
-            'listening_context': 0.05,
-        },
-        'genre-first': {
-            'genre': 0.18,
-            'mood': 0.13,
-            'energy': 0.13,
-            'popularity': 0.10,
-            'acousticness': 0.08,
-            'danceability': 0.08,
-            'valence': 0.07,
-            'mood_tags': 0.07,
-            'release_decade': 0.05,
-            'listening_context': 0.05,
-        },
-        'energy-first': {
-            'energy': 0.22,
-            'danceability': 0.14,
-            'genre': 0.09,
-            'mood': 0.11,
-            'acousticness': 0.08,
-            'popularity': 0.08,
-            'mood_tags': 0.08,
-            'valence': 0.08,
-            'instrumentalness': 0.06,
-            'speechiness': 0.05,
-        },
-    }
-
-    specialized_profile_overrides = {
-        'study': {
-            'acousticness': 0.16,
-            'mood_tags': 0.14,
-            'listening_context': 0.10,
-            'energy': 0.10,
-            'danceability': 0.09,
-            'valence': 0.08,
-            'genre': 0.08,
-            'release_decade': 0.06,
-        },
-        'party': {
-            'energy': 0.18,
-            'danceability': 0.16,
-            'genre': 0.10,
-            'mood': 0.12,
-            'mood_tags': 0.10,
-            'popularity': 0.10,
-            'acousticness': 0.06,
-            'speechiness': 0.06,
-            'release_decade': 0.06,
-        },
-        'workout': {
-            'energy': 0.20,
-            'danceability': 0.14,
-            'genre': 0.09,
-            'mood': 0.10,
-            'popularity': 0.10,
-            'instrumentalness': 0.06,
-            'speechiness': 0.06,
-            'mood_tags': 0.08,
-            'acousticness': 0.07,
-            'release_decade': 0.06,
-        },
-        'relax': {
-            'acousticness': 0.16,
-            'valence': 0.14,
-            'mood': 0.11,
-            'mood_tags': 0.10,
-            'genre': 0.09,
-            'energy': 0.07,
-            'release_decade': 0.08,
-            'instrumentalness': 0.08,
-            'speechiness': 0.05,
-            'listening_context': 0.06,
-        },
-    }
-
+    # Weight resolution: Merge mode and profile overrides, then renormalize.
+    # IMPORTANT: When an override dict specifies only some features, the unspecified
+    # features retain their previous values (from default_weights or mode_weights).
+    # The entire dict is then renormalized so all weights sum to 1.0.
+    # To inspect final effective weights, call resolve_weights() helper.
     final_overrides = {**mode_weight_overrides.get(mode, {}), **(weight_overrides or {})}
     if specialized_profile:
         final_overrides = {**final_overrides, **specialized_profile_overrides.get(specialized_profile, {})}
@@ -273,6 +395,7 @@ def recommend_songs(
     total_weight = sum(weights.values())
     if abs(total_weight - 1.0) > 1e-9:
         weights = {feature: weight / total_weight for feature, weight in weights.items()}
+
 
     def score_song(song: Dict, prefs: Dict) -> Tuple[float, List[str]]:
         score = 0.0

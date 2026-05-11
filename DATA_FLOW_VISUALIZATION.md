@@ -14,7 +14,7 @@
             └────┬────┘        └────┬────┘        └───┬─────┘
                  │                  │                  │
          User Preferences    Scoring Logic      Ranked Results
-         (4 fields)          (5 features)       (Top-K songs)
+         (6+ fields)         (12 features)      (Top-K songs)
 ```
 
 ---
@@ -47,20 +47,34 @@ user_prefs = {
 LOOP through all_songs:
     song = read_next_song_from_csv()
     
-    # Calculate 5 feature similarities
+    # Calculate 12 feature similarities
     energy_score = 1.0 - |song.energy - user.target_energy|
     mood_score = 1.0 if song.mood == user.mood else 0.5
+    genre_score = 1.0 if song.genre == user.favorite_genre else 0.5
     acoustic_score = compute_acoustic_fit(song, user)
     dance_score = compute_danceability_bonus(song, user)
     valence_score = compute_valence_fit(song, user)
+    popularity_score = compute_popularity_fit(song, user)
+    decade_score = compute_decade_fit(song, user)
+    mood_tags_score = compute_mood_tags_fit(song, user)
+    instrumental_score = compute_instrumental_fit(song, user)
+    speechiness_score = compute_speechiness_fit(song, user)
+    context_score = compute_context_fit(song, user)
     
-    # Combine with weights
+    # Combine with weights (all 12 sum to 1.0)
     final_score = (
-        0.30 * energy_score +
-        0.25 * mood_score +
-        0.20 * acoustic_score +
-        0.15 * dance_score +
-        0.10 * valence_score
+        0.15 * energy_score +
+        0.12 * mood_score +
+        0.11 * genre_score +
+        0.09 * acoustic_score +
+        0.09 * dance_score +
+        0.07 * valence_score +
+        0.08 * popularity_score +
+        0.06 * decade_score +
+        0.08 * mood_tags_score +
+        0.06 * instrumental_score +
+        0.05 * speechiness_score +
+        0.04 * context_score
     )
     
     # Store result
@@ -114,7 +128,9 @@ flowchart TD
     
     CalcDance --> CalcValence["🎭 SCORE VALENCE<br/>happy mood = higher valence<br/>score = 0.84"]
     
-    CalcValence --> WeightSum["⚖️  COMBINE WEIGHTS<br/>0.30×0.98 = 0.294<br/>0.25×1.00 = 0.250<br/>0.20×0.82 = 0.164<br/>0.15×0.79 = 0.119<br/>0.10×0.84 = 0.084<br/>TOTAL = 0.91"]
+    CalcValence --> OtherFeatures["🎯 SCORE OTHER FEATURES<br/>Genre, Acousticness, Danceability,<br/>Popularity, Decade, Mood Tags,<br/>Instrumentalness, Speechiness, Context"]
+    
+    OtherFeatures --> WeightSum["⚖️  COMBINE 12 WEIGHTS<br/>15×Energy + 12×Mood + 11×Genre +<br/>9×Acoustic + 9×Dance + 7×Valence +<br/>8×Popularity + 6×Decade + 8×Tags +<br/>6×Instrumental + 5×Speech + 4×Context<br/>TOTAL = 0.91"]
     
     WeightSum --> StoreResult["💾 STORE RESULT<br/>(song_obj, score=0.91)"]
     
@@ -166,7 +182,7 @@ flowchart LR
     end
     
     subgraph PROCESS["⚙️ PROCESSING STAGE"]
-        ScoreLoop["FOR each song:<br/>Calculate 5 scores<br/>Weight: 0.30, 0.25, 0.20, 0.15, 0.10<br/>Sum to get final_score"]
+        ScoreLoop["FOR each song:<br/>Calculate 12 scores<br/>Weight: 0.15, 0.12, 0.11, 0.09,...<br/>Sum to get final_score"]
         AllScores["Results List<br/>[(song1, 0.91),<br/> (song2, 0.87),<br/> (song3, 0.79),<br/> ...]"]
     end
     
@@ -251,20 +267,36 @@ flowchart LR
 │   Mood is "happy" → prefer high valence │
 │   Song valence: 0.84                    │
 │   = 0.84 ⭐ (GOOD)                      │
+│                                         │
+│ Features 6-12: ADDITIONAL CONTEXT      │
+│   - GENRE MATCH: 1.0 (pop == favorite) │
+│   - POPULARITY: 0.88 (matches target)  │
+│   - MOOD TAGS: 0.90 (good match)       │
+│   - INSTRUMENTALNESS: 0.95 (vocal pref)│
+│   - DECADE: 1.0 (2020s match)          │
+│   - SPEECHINESS: 0.88 (lyrical)        │
+│   - CONTEXT: 0.5 (no context match)    │
 └─────────────────────────────────────────┘
                   ↓
 ┌─────────────────────────────────────────┐
 │ PHASE 3: WEIGHT COMBINATION             │
 ├─────────────────────────────────────────┤
-│ Energy:        0.30 × 0.98 = 0.294      │
-│ Mood:          0.25 × 1.00 = 0.250      │
-│ Acousticness:  0.20 × 0.82 = 0.164      │
-│ Danceability:  0.15 × 0.79 = 0.119      │
-│ Valence:       0.10 × 0.84 = 0.084      │
+│ Energy:        0.15 × 0.98 = 0.147      │
+│ Mood:          0.12 × 1.00 = 0.120      │
+│ Genre:         0.11 × 1.00 = 0.110      │
+│ Acousticness:  0.09 × 0.82 = 0.074      │
+│ Danceability:  0.09 × 0.79 = 0.071      │
+│ Valence:       0.07 × 0.84 = 0.059      │
+│ Popularity:    0.08 × 0.88 = 0.070      │
+│ Decade:        0.06 × 1.00 = 0.060      │
+│ Mood Tags:     0.08 × 0.90 = 0.072      │
+│ Instrumental:  0.06 × 0.95 = 0.057      │
+│ Speechiness:   0.05 × 0.88 = 0.044      │
+│ Context:       0.04 × 0.50 = 0.020      │
 │                               ─────────  │
-│ TOTAL SCORE:                    0.911    │
+│ TOTAL SCORE:                    0.884    │
 │                                         │
-│ Score is 0.911 out of 1.0 = 91.1% ✨   │
+│ Score is 0.884 out of 1.0 = 88.4% ✨   │
 └─────────────────────────────────────────┘
                   ↓
 ┌─────────────────────────────────────────┐
@@ -388,22 +420,29 @@ Song Object (structured):
 
 ```
 Input:
-  song: Song{energy=0.82, mood="happy", ...}
+  song: Song{energy=0.82, mood="happy", genre="pop", ...}
   user: UserProfile{target_energy=0.80, mood="happy", ...}
 
-↓ (apply 5 scoring functions)
+↓ (apply 12 scoring functions)
 
 Intermediate:
   energy_score = 0.98
   mood_score = 1.0
+  genre_score = 1.0
   acoustic_score = 0.82
   dance_score = 0.79
   valence_score = 0.84
+  popularity_score = 0.88
+  decade_score = 1.0
+  mood_tags_score = 0.90
+  instrumental_score = 0.95
+  speechiness_score = 0.88
+  context_score = 0.50
 
-↓ (apply weights and sum)
+↓ (apply 12 weights totaling 1.0 and sum)
 
 Output:
-  final_score = 0.911
+  final_score = 0.884
 ```
 
 ### Transformation 3: All Scores → Ranking
@@ -429,13 +468,13 @@ Output (ranked):
 
 | Flowchart Node | Code Location | Function |
 |---|---|---|
-| "Read Song" | `load_songs()` → CSV parsing | Extract 10 fields from CSV |
-| "Score Energy" | `_score_song()` line 1 | `1 - abs(song.energy - target)` |
-| "Score Mood" | `_score_song()` line 2 | `1.0 if match else 0.5` |
-| "Score Acousticness" | `_score_song()` line 3 | Conditional invert based on preference |
-| "Score Danceability" | `_score_song()` line 4 | Mood-dependent bonus |
-| "Score Valence" | `_score_song()` line 5 | Mood-dependent interpretation |
-| "Combine Weights" | `_score_song()` final | `0.30*e + 0.25*m + ...` |
+| "Read Song" | `load_songs()` → CSV parsing | Extract 12+ fields from CSV |
+| "Score Energy" | `_score_song()` / `score_song()` | `1 - abs(song.energy - target)` |
+| "Score Mood" | `_score_song()` / `score_song()` | `1.0 if match else 0.5` |
+| "Score Genre" | `_score_song()` / `score_song()` | `1.0 if match else 0.5` |
+| "Score Acousticness" | `_score_song()` / `score_song()` | Conditional invert based on preference |
+| "Score Other Features" | `_score_song()` / `score_song()` | Danceability, Valence, Popularity, Decade, Tags, Instrumental, Speechiness, Context |
+| "Combine Weights" | `_score_song()` / `score_song()` final | `0.15*E + 0.12*M + ... + 0.04*C` (from `DEFAULT_WEIGHTS`) |
 | "Store Result" | Append to list | `scores_list.append((song, score))` |
 | "Sort by Score" | `sorted(..., reverse=True)` | Python's sort function |
 | "Select Top-K" | `[:k]` slicing | Take first k elements |
@@ -454,22 +493,22 @@ Complexity Analysis:
 │ Operation      │ Time Complexity            │
 ├────────────────┼────────────────────────────┤
 │ Load CSV       │ O(N)        (read N lines) │
-│ Score All      │ O(N × M)    (N songs × 5  │
+│ Score All      │ O(N × M)    (N songs × 12 │
 │                │             features)      │
 │ Sort           │ O(N log N)  (quicksort)    │
 │ Select Top-K   │ O(K)        (array slice)  │
 │ Generate Text  │ O(K)        (build K strs) │
 ├────────────────┼────────────────────────────┤
-│ TOTAL          │ O(N × M) = O(20 × 5) ✓   │
-│                │ = ~100 operations          │
+│ TOTAL          │ O(N × M) = O(20 × 12) ✓  │
+│                │ = ~240 operations          │
 │                │ (instant for 20 songs)     │
 └────────────────┴────────────────────────────┘
 
 For 1M songs (Spotify scale):
-  O(1M × 5) = 5M operations = ~50ms on modern CPU
+  O(1M × 12) = 12M operations = ~120ms on modern CPU
 
 For 100M songs (YouTube Music):
-  O(100M × 5) = 500M ops = ~5 seconds ← optimizations needed!
+  O(100M × 12) = 1.2B ops = ~12 seconds ← optimizations needed!
 ```
 
 ---
@@ -518,7 +557,7 @@ Possible failure points:
               ┌────────────▼────────────┐
               │  FOR EACH SONG:         │
               │  - Read from CSV        │
-              │  - Calculate 5 scores   │
+              │  - Calculate 12 scores  │
               │  - Weight & combine     │
               │  - Store (song, score)  │
               └────────────┬────────────┘

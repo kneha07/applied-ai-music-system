@@ -6,6 +6,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
 import pandas as pd
+import requests
+from urllib.parse import quote_plus
 
 from src.recommender import load_songs, recommend_songs
 from src.system import RecommendationAgent
@@ -332,6 +334,20 @@ def get_songs():
     return load_songs(CSV_PATH)
 
 
+@st.cache_data(show_spinner=False)
+def get_itunes_preview(title: str, artist: str) -> str | None:
+    try:
+        q = quote_plus(f"{title} {artist}")
+        r = requests.get(
+            f"https://itunes.apple.com/search?term={q}&entity=song&limit=1",
+            timeout=4,
+        )
+        results = r.json().get("results", [])
+        return results[0].get("previewUrl") if results else None
+    except Exception:
+        return None
+
+
 # ── UI Components ──────────────────────────────────────────────────────────────
 def render_hero():
     st.markdown("""
@@ -377,6 +393,19 @@ def render_song_card(rank: int, song: dict, score: float):
             for t in (song.get("mood_tags") or [])[:3]
         )
     )
+    query      = quote_plus(f'{song["title"]} {song["artist"]}')
+    yt_url     = f"https://www.youtube.com/results?search_query={query}"
+    spot_url   = f"https://open.spotify.com/search/{query}"
+    play_links = (
+        f'<div style="margin-top:0.7rem;display:flex;gap:0.5rem;flex-wrap:wrap;">'
+        f'  <a href="{yt_url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:0.3rem;'
+        f'     background:#ff0000;color:#fff;text-decoration:none;font-size:0.76rem;font-weight:600;'
+        f'     padding:0.22rem 0.7rem;border-radius:99px;">▶ YouTube</a>'
+        f'  <a href="{spot_url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:0.3rem;'
+        f'     background:#1db954;color:#fff;text-decoration:none;font-size:0.76rem;font-weight:600;'
+        f'     padding:0.22rem 0.7rem;border-radius:99px;">🎵 Spotify</a>'
+        f'</div>'
+    )
     st.markdown(
         f'<article class="song-card" aria-label="Rank {rank}: {song["title"]} by {song["artist"]}">'
         f'  <span class="song-rank" aria-hidden="true">#{rank}</span>'
@@ -389,9 +418,13 @@ def render_song_card(rank: int, song: dict, score: float):
         f'    </div>'
         f'    <div class="score-label">{score:.3f} match score</div>'
         f'  </div>'
+        f'  {play_links}'
         f'</article>',
         unsafe_allow_html=True,
     )
+    preview_url = get_itunes_preview(song["title"], song["artist"])
+    if preview_url:
+        st.audio(preview_url, format="audio/mp4")
 
 
 def render_results_table(results):
@@ -670,6 +703,126 @@ def run_nl_tab(songs):
         </div>""", unsafe_allow_html=True)
 
 
+# ── Tab 3: Playlists ───────────────────────────────────────────────────────────
+PLAYLISTS = [
+    {
+        "name": "🎉 Party Starter",
+        "description": "High-energy bangers to get the crowd moving.",
+        "prefs": {
+            "mood": "happy", "energy": 0.9, "acoustic_preference": "electronic",
+            "favorite_genre": "pop", "target_popularity": 80, "preferred_decade": "2020s",
+            "vocal_preference": "vocal", "listening_context": "party",
+            "desired_mood_tags": ["euphoric", "bright"],
+        },
+        "mode": "genre-first",
+    },
+    {
+        "name": "📚 Deep Focus",
+        "description": "Calm, instrumental-friendly tracks for studying or focused work.",
+        "prefs": {
+            "mood": "chill", "energy": 0.3, "acoustic_preference": "acoustic",
+            "favorite_genre": "lofi", "target_popularity": 55, "preferred_decade": "2020s",
+            "vocal_preference": "instrumental", "listening_context": "study",
+            "desired_mood_tags": ["dreamy", "focused"],
+        },
+        "mode": "mood-first",
+    },
+    {
+        "name": "💪 Pump Up",
+        "description": "Intense, driving tracks to push your workout harder.",
+        "prefs": {
+            "mood": "intense", "energy": 0.95, "acoustic_preference": "electronic",
+            "favorite_genre": "rock", "target_popularity": 72, "preferred_decade": "2010s",
+            "vocal_preference": "vocal", "listening_context": "workout",
+            "desired_mood_tags": ["aggressive", "powerful"],
+        },
+        "mode": "energy-first",
+    },
+    {
+        "name": "🌙 Night Vibes",
+        "description": "Moody, atmospheric songs for late nights.",
+        "prefs": {
+            "mood": "moody", "energy": 0.45, "acoustic_preference": "mixed",
+            "favorite_genre": "ambient", "target_popularity": 60, "preferred_decade": "2020s",
+            "vocal_preference": "vocal", "listening_context": "night",
+            "desired_mood_tags": ["dark", "emotional"],
+        },
+        "mode": "mood-first",
+    },
+    {
+        "name": "☀️ Morning Energy",
+        "description": "Bright, uplifting tracks to start your day right.",
+        "prefs": {
+            "mood": "happy", "energy": 0.72, "acoustic_preference": "mixed",
+            "favorite_genre": "pop", "target_popularity": 78, "preferred_decade": "2020s",
+            "vocal_preference": "vocal", "listening_context": "drive",
+            "desired_mood_tags": ["bright", "uplifting"],
+        },
+        "mode": "balanced",
+    },
+    {
+        "name": "☕ Coffee Shop",
+        "description": "Easy-going acoustic vibes for a relaxed afternoon.",
+        "prefs": {
+            "mood": "relaxed", "energy": 0.38, "acoustic_preference": "acoustic",
+            "favorite_genre": "indie", "target_popularity": 62, "preferred_decade": "2020s",
+            "vocal_preference": "vocal", "listening_context": "coffee",
+            "desired_mood_tags": ["mellow", "warm"],
+        },
+        "mode": "mood-first",
+    },
+]
+
+
+def run_playlists_tab(songs):
+    st.markdown("""
+    <div class="section-header">
+      <span>🎧</span><h2>Ready-Made Playlists</h2>
+      <span class="section-badge">Curated</span>
+    </div>""", unsafe_allow_html=True)
+
+    cols = st.columns(3)
+    selected = st.session_state.get("selected_playlist")
+
+    for i, pl in enumerate(PLAYLISTS):
+        with cols[i % 3]:
+            active = selected == i
+            border = "#0891b2" if active else "rgba(6,182,212,0.3)"
+            bg = "rgba(8,145,178,0.07)" if active else "#ffffff"
+            st.markdown(
+                f'<div style="background:{bg};border:2px solid {border};border-radius:16px;'
+                f'padding:1.2rem 1.3rem;margin-bottom:0.5rem;min-height:90px;">'
+                f'<div style="font-size:1.08rem;font-weight:700;color:#0c2d48;margin-bottom:0.3rem">{pl["name"]}</div>'
+                f'<div style="font-size:0.82rem;color:#6b7280">{pl["description"]}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("Play", key=f"pl_{i}", use_container_width=True):
+                st.session_state["selected_playlist"] = i
+                st.rerun()
+
+    if selected is not None:
+        pl = PLAYLISTS[selected]
+        st.divider()
+        st.markdown(
+            f'<div class="section-header"><span>🎶</span><h2>{pl["name"]}</h2></div>',
+            unsafe_allow_html=True,
+        )
+
+        with st.spinner("Building playlist…"):
+            results = recommend_songs(pl["prefs"], songs, k=6, mode=pl["mode"])
+
+        choice = view_switcher("pl_view")
+        if "Cards" in choice:
+            for i, (song, score, _) in enumerate(results, 1):
+                render_song_card(i, song, score)
+        else:
+            render_results_table(results)
+
+        with st.expander("Playlist settings"):
+            st.json(pl["prefs"])
+
+
 # ── Entry Point ────────────────────────────────────────────────────────────────
 def main():
     st.set_page_config(
@@ -699,11 +852,13 @@ def main():
         st.markdown("- High-contrast colors")
         st.markdown("- WCAG AA compliant")
 
-    tab1, tab2 = st.tabs(["🎛️  Profile Builder", "💬  Natural Language"])
+    tab1, tab2, tab3 = st.tabs(["🎛️  Profile Builder", "💬  Natural Language", "🎧  Playlists"])
     with tab1:
         run_profile_tab(songs)
     with tab2:
         run_nl_tab(songs)
+    with tab3:
+        run_playlists_tab(songs)
 
 
 if __name__ == "__main__":
